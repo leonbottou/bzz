@@ -172,9 +172,9 @@ public:
 private:
   // Data
   int             encoding;
-  int             offset;
+  long            offset;
   int             bptr;
-  int             blocksize;
+  unsigned int    blocksize;
   unsigned char  *data;
   int             size;
   int             eof;

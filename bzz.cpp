@@ -62,9 +62,9 @@ usage(void)
   fprintf(stderr, 
           "BZZ -- ZPCoded Burrows Wheeler compression\n"
           "%s\n"
-          "Usage [encoding]: %s -e[<blocksize>] <infile> <outfile>\n"
+          "Usage [encoding]: %s -e[<blocksize>(K|M|G)] <infile> <outfile>\n"
           "Usage [decoding]: %s -d <infile> <outfile>\n"
-          "  Argument <blocksize> must be in range [900..2000000] (default 1100KB).\n"
+          "  Argument <blocksize> must be in range [900K..1G] (default 2M).\n"
           "  Arguments <infile> and <outfile> can be '-' for stdin/stdout.\n",
           "Copyright (c) 1999-2000 LizardTech, Inc. All Rights Reserved.", program, program);
   exit(1);
@@ -84,10 +84,12 @@ main(int argc, char **argv)
         program = argv[0];
       // Obtain default mode from program name
       int blocksize = -1;
+#if 0
       if (!strcmp(program,"bzz"))
         blocksize = 1100;
       else if (!strcmp(program,"unbzz"))
         blocksize = 0;
+#endif
       // Parse arguments
       if (argc>=2 && argv[1][0]=='-')
         {
@@ -98,10 +100,27 @@ main(int argc, char **argv)
           else if (argv[1][1]=='e')
             {
               blocksize = 2048;
-              if (argv[1][2])
-                blocksize = atoi(argv[1]+2);
-            }
-          else 
+              if (argv[1][2]) {
+		char *eptr;
+                long bs = strtol(argv[1]+2, &eptr, 10);
+		if (eptr[0]!=0 && eptr[1]!=0)
+		  usage();
+		switch(eptr[0]) {
+		case 'k': case 'K': case 0:
+		  break;
+		case 'm': case 'M':
+		  bs *= 1024; break;
+		case 'g': case 'G':
+		  bs *= 1024*1024; break;
+		default:
+		  usage();
+		}
+		blocksize = bs;
+		if (blocksize != bs)
+		  usage();
+	      }
+	    }
+	  else 
             usage();
           argv++;
           argc--;

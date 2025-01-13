@@ -25,6 +25,8 @@
 #ifndef _GEXCEPTION_H_
 #define _GEXCEPTION_H_
 
+#include <stdexcept>
+
 /** @name GException.h
 
     Files #"GException.h"# and #"GException.cpp"# define a portable exception
@@ -79,7 +81,7 @@
     throwing and catching exceptions (see \Ref{GException.h}). These macros
     only deal with exceptions of type #GException#. */
 
-class GException {
+class GException : public std::exception {
 public:
   /** Constructs a GException.  This constructor is usually called by macro
       #THROW#.  Argument #cause# is a plain text error message. As a
@@ -94,7 +96,9 @@ public:
   /** Null Constructor. */
   GException ();
   /** Destructor. */
-  virtual ~GException(void);
+  virtual ~GException(void) throw();
+  /* Inherited */
+  virtual const char *what() const throw();
   /** Copy Operator. */
   GException & operator=(const GException & exc);
   /** Prints an error message on stderr.

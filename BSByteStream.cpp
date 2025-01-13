@@ -45,7 +45,7 @@
 
 // Limits on block sizes
 #define MINBLOCK           100
-#define MAXBLOCK           4096
+#define MAXBLOCK           (1024*1024)
 
 // Overflow required when encoding
 #define OVERFLOW           32
@@ -74,6 +74,7 @@ private:
   int            size;
   unsigned char *data;
   unsigned int  *posn;
+  unsigned char *poss;
   int           *rank;
   // Helpers
   inline int GT(int p1, int p2, int depth);
@@ -107,14 +108,17 @@ blocksort(unsigned char *data, int size, int &markerpos)
 _BSort::_BSort(unsigned char *data, int size)
   : size(size), data(data), posn(0), rank(0)
 {
-  ASSERT(size>0 && size<0x1000000);
+  ASSERT(size>0 && size<=MAXBLOCK*1024);
   posn = new unsigned int [size];
+  poss = new unsigned char [size];
+  memset(poss, 0, size);
   rank = new int[size+1];
   rank[size] = -1;
 }
 
 _BSort::~_BSort()
 {
+  delete [] poss;
   delete [] posn;
   delete [] rank;
 }
@@ -630,10 +634,10 @@ _BSort::run(int &markerpos)
       int sorted_lo = 0;
       for (lo=0; lo<size; lo++)
         {
-          hi = rank[posn[lo]&0xffffff];
+          hi = rank[posn[lo]];
           if (lo == hi)
             {
-              lo += (posn[lo]>>24) & 0xff;
+              lo += poss[lo];
             }
           else
             {
@@ -647,7 +651,8 @@ _BSort::run(int &markerpos)
                   while (sorted_lo < lo-1)
                     {
                       int step = mini(255, lo-1-sorted_lo);
-                      posn[sorted_lo] = (posn[sorted_lo]&0xffffff) | (step<<24);
+                      posn[sorted_lo] = posn[sorted_lo];
+		      poss[sorted_lo] = step;
                       sorted_lo += step+1;
                     }
                   quicksort3r(lo, hi, depth);
@@ -660,7 +665,7 @@ _BSort::run(int &markerpos)
       while (sorted_lo < lo-1)
         {
           int step = mini(255, lo-1-sorted_lo);
-          posn[sorted_lo] = (posn[sorted_lo]&0xffffff) | (step<<24);
+          poss[sorted_lo] = step;
           sorted_lo += step+1;
         }
       // Double depth
@@ -673,7 +678,7 @@ _BSort::run(int &markerpos)
     rank[i] = data[i];
   for (i=0; i<size; i++)
     {
-      int j = posn[i] & 0xffffff;
+      int j = posn[i];
       if (j>0) 
         { 
           data[i] = rank[j-1];
@@ -743,7 +748,7 @@ BSByteStream::encode()
   //////////// Encode Output Stream
 
   // Header
-  encode_raw(zp, 24, size);
+  encode_raw(zp, 30, size);
   // MTF
   unsigned char mtf[256];
   unsigned char rmtf[256];
@@ -894,7 +899,10 @@ BSByteStream::decode()
   
   int i;
   // Decode block size
-  size = decode_raw(zp, 24);
+  size = decode_raw(zp, 30);
+#if DEBUG
+  fprintf(stderr,"bzz block size=%ld\n",(long)size);
+#endif
   if (size == 0)
     return 0;
   if (size>MAXBLOCK*1024)
@@ -1001,7 +1009,9 @@ BSByteStream::decode()
     THROW("Corrupted decoder input");
   // Allocate pointers
   unsigned int *posn = new unsigned int[blocksize];
+  unsigned char *posc = new unsigned char[blocksize];
   memset(posn, 0, sizeof(unsigned int)*size);
+  memset(posc, 0, sizeof(unsigned char)*size);
   // Prepare count buffer
   int count[256];
   for (i=0; i<256; i++)
@@ -1010,13 +1020,15 @@ BSByteStream::decode()
   for (i=0; i<markerpos; i++) 
     {
       unsigned char c = data[i];
-      posn[i] = (c<<24) | (count[c] & 0xffffff);
+      posn[i] = count[c];
+      posc[i] = c;
       count[c] += 1;
     }
   for (i=markerpos+1; i<size; i++)
     {
       unsigned char c = data[i];
-      posn[i] = (c<<24) | (count[c] & 0xffffff);
+      posn[i] = count[c];
+      posc[i] = c;
       count[c] += 1;
     }
   // Compute sorted char positions
@@ -1033,12 +1045,13 @@ BSByteStream::decode()
   while (last>0)
     {
       unsigned int n = posn[i];
-      unsigned char c = (posn[i]>>24);
+      unsigned char c = posc[i];
       data[--last] = c;
-      i = count[c] + (n & 0xffffff);
+      i = count[c] + n;
     }
   // Free and check
   delete [] posn;
+  delete [] posc;
   if (i != markerpos)
     THROW("Corrupted decoder input");
   return size;
@@ -1077,7 +1090,7 @@ BSByteStream::~BSByteStream()
     flush();
   // Encode EOF marker
   if (encoding)
-    encode_raw(zp, 24, 0);
+    encode_raw(zp, 30, 0);
   // Free allocated memory
   if (data)
     delete [] data; 

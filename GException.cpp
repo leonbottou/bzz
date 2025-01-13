@@ -26,6 +26,7 @@
 #include <stdio.h>
 #include <string.h>
 #include "GException.h"
+#include <new>
 
 // File "$Id: GException.cpp,v 1.2 2001-01-04 22:04:53 bcr Exp $"
 // - Author: Leon Bottou, 05/1997
@@ -73,11 +74,16 @@ GException::GException (const char *xcause, const char *file, int line, const ch
     }
 }
 
-GException::~GException(void)
+GException::~GException(void) throw()
 {
   if (cause && cause!=outofmemory ) 
     delete [] (char*)cause; 
   cause=file=func=0;
+}
+
+const char *GException::what() const throw()
+{
+  return (cause) ? cause : "unknown";
 }
 
 GException & 
@@ -126,3 +132,7 @@ GException::get_cause(void) const
   return cause;
 }
 
+
+static void throw_memory_error() { THROW(GException::outofmemory); }
+
+static void (*old_handler)() = std::set_new_handler(throw_memory_error);
