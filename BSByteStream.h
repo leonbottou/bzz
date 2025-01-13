@@ -107,11 +107,6 @@
     #$Id: BSByteStream.h,v 1.2 2001-01-04 22:04:53 bcr Exp $# */
 //@{
 
-#ifdef __GNUC__
-#pragma interface
-#endif
-
-#include "DjVuGlobal.h"
 #include "GException.h"
 #include "ByteStream.h"
 #include "ZPCodec.h"
@@ -177,9 +172,9 @@ public:
 private:
   // Data
   int             encoding;
-  long            offset;
+  int             offset;
   int             bptr;
-  unsigned int    blocksize;
+  int             blocksize;
   unsigned char  *data;
   int             size;
   int             eof;

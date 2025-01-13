@@ -54,17 +54,11 @@
     #$Id: ByteStream.h,v 1.2 2001-01-04 22:04:53 bcr Exp $# */
 //@{
 
-#ifdef __GNUC__
-#pragma interface
-#endif
 
-#include "DjVuGlobal.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
 #include "GException.h"
-#include "GContainer.h"
-#include "GSmartPointer.h"
 
 
 /** Abstract class for a stream of bytes.  Class #ByteStream# represent an

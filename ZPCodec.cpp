@@ -22,10 +22,6 @@
 //C-
 
 
-#ifdef __GNUC__
-#pragma implementation
-#endif
-
 #include "ZPCodec.h"
 #include "ByteStream.h"
 #include "GException.h"
@@ -39,19 +35,10 @@
 ////////////////////////////////////////////////////////////////
 
 
-#ifndef ZPCODER
-#ifndef ZCODER
-#define ZPCODER
-#endif
-#endif
-#ifdef ZCODER
+#define ZCODER 1
 
-// The ZCODER option is provided for documentation purposes only. The ZCODER
-// is dangerously close to U.S. patent 5059976 (Mitsubishi).  This is why we
-// always use the ZPCODER, although it usually produces 1% larger files.
-#warning "The ZCODER may infringe non-LizardTech patent(s)."
-#warning "You should use the ZPCODER instead."
-#endif
+// Mitsubishi patent has long expired.
+
 
 ////////////////////////////////////////////////////////////////
 // INTERFACE STUFF

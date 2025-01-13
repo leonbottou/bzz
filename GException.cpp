@@ -22,18 +22,10 @@
 //C-
 
 
-#ifdef __GNUC__
-#pragma implementation
-#endif
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <new.h>
 #include "GException.h"
-#ifdef DEBUGLVL
-#include "debug.h"
-#endif
 
 // File "$Id: GException.cpp,v 1.2 2001-01-04 22:04:53 bcr Exp $"
 // - Author: Leon Bottou, 05/1997
@@ -67,7 +59,7 @@ GException::GException (const char *xcause, const char *file, int line, const ch
   // good place to set a breakpoint and DEBUG message too. 
   // It'd hard to track exceptions which seem to go from nowhere
 #ifdef DEBUG_MSG
-  DEBUG_MSG("GException::GException(): cause=" << (cause ? cause : "unknown") << "\n");
+  fprintf(stderr, "GException::GException(): cause=%s\n", (cause ? cause : "unknown"));
 #endif
   if (xcause && xcause!=outofmemory) 
     {
@@ -134,44 +126,3 @@ GException::get_cause(void) const
   return cause;
 }
 
-
-#ifdef USE_EXCEPTION_EMULATION
-
-GExceptionHandler *GExceptionHandler::head = 0;
-
-void
-GExceptionHandler::emthrow(const GException &gex)
-{
-  if (head)
-    {
-      head->current = gex;
-      longjmp(head->jump, -1);
-    }
-  else
-    {
-      gex.perror("Unhandled exception");
-      abort();
-    }
-}
-
-
-#endif
-
-
-
-// ------ MEMORY MANAGEMENT HANDLER
-
-#ifndef NEED_DJVU_MEMORY
-// This is not activated when C++ memory management
-// is overidden.  The overriding functions handle
-// memory exceptions by themselves.
-#if defined(_MSC_VER)
-// Microsoft is different!
-static int throw_memory_error(size_t) { THROW(GException::outofmemory); return 0; }
-static int (*old_handler)(size_t) = _set_new_handler(throw_memory_error);
-#else // !_MSC_VER
-// Standard C++
-static void throw_memory_error() { THROW(GException::outofmemory); }
-static void (*old_handler)() = set_new_handler(throw_memory_error);
-#endif // !_MSC_VER
-#endif // !NEED_DJVU_MEMORY

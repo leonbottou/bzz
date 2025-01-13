@@ -24,10 +24,6 @@
 // File "$Id: ByteStream.cpp,v 1.2 2001-01-04 22:04:53 bcr Exp $"
 // - Author: Leon Bottou, 04/1997
 
-#ifdef __GNUC__
-#pragma implementation
-#endif
-
 #include "ByteStream.h"
 #include <errno.h>
 
@@ -239,7 +235,7 @@ StdioByteStream::StdioByteStream(const char *filename, const char *mode)
       if (!fp)
       {
 	 char buffer[4096];
-	 sprintf(buffer, "Cannot open '%s': %s",
+	 snprintf(buffer, sizeof(buffer), "Cannot open '%s': %s",
 		 filename, strerror(errno));
 	 THROW(buffer);
       };
@@ -257,8 +253,10 @@ StdioByteStream::StdioByteStream(const char *filename, const char *mode)
 StdioByteStream::~StdioByteStream()
 {
   if (must_close)
-    if (fclose(fp) < 0)
-      THROW(strerror(errno));
+    if (fclose(fp) < 0) {
+      fprintf(stderr,"StdioByteStream::~StdioByteStream(): fclose failed\n");
+      exit(10);
+    }
 }
 
 size_t 

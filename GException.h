@@ -73,11 +73,6 @@
     #$Id: GException.h,v 1.2 2001-01-04 22:04:53 bcr Exp $# */
 //@{
 
-#include "DjVuGlobal.h"
-
-#ifdef __GNUC__
-#pragma interface
-#endif
 
 /** Exception class.  
     The library always uses macros #TRY#, #THROW#, #CATCH# and #ENDCATCH# for
@@ -140,25 +135,9 @@ private:
 #undef G_RETHROW
 #undef G_THROW
 
-// Check if compiler supports native exceptions
-#if defined(_MSC_VER)
+//LB2025// modern cpp support exceptions
 #define CPP_SUPPORTS_EXCEPTIONS
-#endif
-#if defined(__MWERKS__)
-#define CPP_SUPPORTS_EXCEPTIONS
-#endif
-#if defined(__EXCEPTIONS)
-#define CPP_SUPPORTS_EXCEPTIONS
-#endif
-// Decide which exception model to use
-#ifndef CPP_SUPPORTS_EXCEPTIONS
-#ifndef USE_EXCEPTION_EMULATION
-#define USE_EXCEPTION_EMULATION
-#endif
-#endif
 
-
-#ifndef USE_EXCEPTION_EMULATION
 
 // Compiler supports ANSI C++ exceptions.
 // Defined exception macros accordingly.
@@ -175,53 +154,6 @@ private:
   GException(msg, __FILE__, __LINE__)
 #endif
 
-#else // USE_EXCEPTION_EMULATION
-
-// Compiler does not support ANSI C++ exceptions.
-// Emulate with setjmp/longjmp.
-
-#include <setjmp.h>
-
-class GExceptionHandler {
-public:
-  jmp_buf jump;
-  GExceptionHandler *next;
-  GException current;
-public:
-  static GExceptionHandler *head;
-  static void emthrow(const GException &);
-public:
-  GExceptionHandler() { next = head; };
-  ~GExceptionHandler() { head = next; };
-};
-
-#define G_TRY    do { GExceptionHandler __exh; \
-                      if (!setjmp(__exh.jump)) \
-                      { GExceptionHandler::head = &__exh;
-
-#define G_CATCH(n) } else { GExceptionHandler::head = __exh.next; \
-                            GException& n = __exh.current;
-
-#define G_ENDCATCH } } while(0)
-
-#define G_RETHROW    GExceptionHandler::emthrow(__exh.current)
-
-#ifdef __GNUG__
-#define G_THROW(msg) GExceptionHandler::emthrow \
-  (GException(msg, __FILE__, __LINE__, __PRETTY_FUNCTION__))
-#else
-#define G_THROW(m) GExceptionHandler::emthrow \
-  (GException(m, __FILE__, __LINE__))
-#endif
-
-#endif // !CPP_SUPPORTS_EXCEPTIONS
-
-
-#undef TRY
-#undef CATCH
-#undef ENDCATCH
-#undef RETHROW
-#undef THROW
 #define TRY G_TRY
 #define CATCH G_CATCH
 #define ENDCATCH G_ENDCATCH

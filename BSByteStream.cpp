@@ -25,10 +25,6 @@
 // - Author: Leon Bottou, 07/1998
 
 
-#ifdef __GNUC__
-#pragma implementation
-#endif
-
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -782,10 +778,12 @@ BSByteStream::encode()
       BitContext *cx = ctx;
       b = (mtfno==0);
       zp.encoder(b, cx[ctxid]);
-      if (b) goto rotate; cx+=CTXIDS;
+      if (b) goto rotate;
+      cx+=CTXIDS;
       b = (mtfno==1);
       zp.encoder(b, cx[ctxid]);
-      if (b) goto rotate; cx+=CTXIDS;
+      if (b) goto rotate;
+      cx+=CTXIDS;
       b = (mtfno<4);
       zp.encoder(b, cx[0]);
       if (b) { encode_binary(zp,cx+1,1,mtfno-2); goto rotate; } 

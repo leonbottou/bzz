@@ -25,13 +25,7 @@
 #ifndef _ZPCODEC_H
 #define _ZPCODEC_H
 
-#include "DjVuGlobal.h"
 #include "ByteStream.h"
-
-#ifdef __GNUC__
-#pragma interface
-#endif
-
 
 /** @name ZPCodec.h
     

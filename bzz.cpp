@@ -54,7 +54,7 @@
 #include "BSByteStream.h"
 
 
-char *program = "(unknown)";
+const char *program = "(unknown)";
 
 void
 usage(void)
@@ -64,7 +64,7 @@ usage(void)
           "%s\n"
           "Usage [encoding]: %s -e[<blocksize>] <infile> <outfile>\n"
           "Usage [decoding]: %s -d <infile> <outfile>\n"
-          "  Argument <blocksize> must be in range [900..4096] (default 1100).\n"
+          "  Argument <blocksize> must be in range [900..2000000] (default 1100KB).\n"
           "  Arguments <infile> and <outfile> can be '-' for stdin/stdout.\n",
           "Copyright (c) 1999-2000 LizardTech, Inc. All Rights Reserved.", program, program);
   exit(1);
@@ -109,8 +109,8 @@ main(int argc, char **argv)
       if (blocksize < 0)
         usage();
       // Obtain filenames
-      char *infile = "-";
-      char *outfile = "-";
+      const char *infile = "-";
+      const char *outfile = "-";
       if (argc >= 2)
         infile = argv[1];
       if (argc >= 3)
