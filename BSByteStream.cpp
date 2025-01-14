@@ -699,10 +699,7 @@ _BSort::run(int &markerpos)
 // -- Encoding
 
 
-#define FREQMAX   4
-#define FREQS0    -1  //100000
-#define FREQS1    -1  //1000000
-#define CTXIDS    3
+#define CTXIDS 4
 
 static void
 encode_raw(ZPCodec &zp, int bits, int x)
