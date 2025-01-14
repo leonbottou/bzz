@@ -752,23 +752,11 @@ BSByteStream::encode()
   // MTF
   unsigned char mtf[256];
   unsigned char rmtf[256];
-  unsigned int  freq[FREQMAX];
   int m = 0;
   for (m=0; m<256; m++)
     mtf[m] = m;
   for (m=0; m<256; m++)
     rmtf[mtf[m]] = m;
-  int fadd = 4;
-  for (m=0; m<FREQMAX; m++)
-    freq[m] = 0;
-  int fshift = 0;
-  if (size > FREQS0 && FREQS0 >= 0)
-    fshift += 1;
-  if (size > FREQS1 && FREQS1 >= 0)
-    fshift += 1;
-#if 0
-  fprintf(stderr,"Encoding size=%ld shift=%d\n", (long)size, fshift);
-#endif
 
   // Encode
   int i;
@@ -821,40 +809,14 @@ BSByteStream::encode()
       zp.encoder(b, cx[0]);
       if (b) { encode_binary(zp,cx+1,7,mtfno-128); goto rotate; } 
       continue;
-      // Rotate MTF according to empirical frequencies (new!)
     rotate:
-      // Adjust frequencies for overflow
       int k;
-      fadd = fadd + (fadd>>fshift);
-      if (fadd > 0x10000000) 
-        {
-          fadd = fadd>>24;
-          freq[0] >>= 24;
-          freq[1] >>= 24;
-          freq[2] >>= 24;
-          freq[3] >>= 24;
-#if FREQMAX>4
-          for (k=4; k<FREQMAX; k++)
-            freq[k] = freq[k]>>24;
-#endif
-        }
-      // Relocate new char according to new freq
-      unsigned int fc = fadd;
-      if (mtfno < FREQMAX)
-        fc += freq[mtfno];
-      for (k=mtfno; k>=FREQMAX; k--)
+      for (k=mtfno; k>0; k--)
         {
           mtf[k] = mtf[k-1];
-          rmtf[mtf[k]] = k;
-        }
-      for (; k>0 && fc>=freq[k-1]; k--)
-        {
-          mtf[k] = mtf[k-1];
-          freq[k] = freq[k-1];
           rmtf[mtf[k]] = k;
         }
       mtf[k] = c;
-      freq[k] = fc;
       rmtf[mtf[k]] = k;
     }
   // Terminate
@@ -923,18 +885,9 @@ BSByteStream::decode()
     data = new unsigned char[blocksize];
   // MTF
   unsigned char mtf[256];
-  unsigned int freq[FREQMAX];
   int m = 0;
   for (m=0; m<256; m++)
     mtf[m] = m;
-  int fadd = 4;
-  for (m=0; m<FREQMAX; m++)
-    freq[m]= 0;
-  int fshift = 0;
-  if (size > FREQS0 && FREQS0 >= 0)
-    fshift += 1;
-  if (size > FREQS1 && FREQS1 >= 0)
-    fshift += 1;
   // Decode
   int mtfno = 3;
   int markerpos = -1;
@@ -973,36 +926,11 @@ BSByteStream::decode()
       data[i]=0;
       markerpos=i;
       continue;
-      // Rotate mtf according to empirical frequencies (new!)
     rotate:
-      // Adjust frequencies for overflow
       int k;
-      fadd = fadd + (fadd>>fshift);
-      if (fadd > 0x10000000) 
-        {
-          fadd    >>= 24;
-          freq[0] >>= 24;
-          freq[1] >>= 24;
-          freq[2] >>= 24;
-          freq[3] >>= 24;
-#if FREQMAX>4
-          for (k=4; k<FREQMAX; k++)
-            freq[k] = freq[k]>>24;
-#endif
-        }
-      // Relocate new char according to new freq
-      unsigned int fc = fadd;
-      if (mtfno < FREQMAX)
-        fc += freq[mtfno];
-      for (k=mtfno; k>=FREQMAX; k--) 
+      for (k=mtfno; k>0; k--) 
         mtf[k] = mtf[k-1];
-      for (; k>0 && fc>=freq[k-1]; k--)
-        {
-          mtf[k] = mtf[k-1];
-          freq[k] = freq[k-1];
-        }
       mtf[k] = data[i];
-      freq[k] = fc;
     }
   
 
