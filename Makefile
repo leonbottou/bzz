@@ -1,5 +1,6 @@
 SHELL=/bin/sh
-CXXFLAGS=-O3
+DEFS=
+CXXFLAGS=-O3 ${DEFS}
 CXX=c++
 
 PGMS=bzz

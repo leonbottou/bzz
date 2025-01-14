@@ -701,6 +701,23 @@ _BSort::run(int &markerpos)
 
 #define CTXIDS 4
 
+
+#if REVERSE_BUFFER
+
+static void
+reverse(unsigned char *s, int size)
+{
+  unsigned char *e = s + size;
+  while (s < --e) {
+    unsigned char tmp = *e;
+    *e = *s;
+    *s++ = tmp;
+  }
+}
+
+#endif
+
+
 static void
 encode_raw(ZPCodec &zp, int bits, int x)
 {
@@ -735,6 +752,12 @@ encode_binary(ZPCodec &zp, BitContext *ctx, int bits, int x)
 unsigned int
 BSByteStream::encode()
 {
+  /////////////////////////////////
+  ////////////  Optional reverse
+
+#if REVERSE_BUFFER
+  reverse(data, size-1);
+#endif
   /////////////////////////////////
   ////////////  Block Sort Tranform
 
@@ -983,6 +1006,13 @@ BSByteStream::decode()
   delete [] posc;
   if (i != markerpos)
     THROW("Corrupted decoder input");
+
+  /////////////////////////////////
+  ////////////  Optional reverse
+
+#if REVERSE_BUFFER
+  reverse(data, size-1);
+#endif
   return size;
 }
 
