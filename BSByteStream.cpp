@@ -700,8 +700,8 @@ _BSort::run(int &markerpos)
 
 
 #define FREQMAX   4
-#define FREQS0    100000
-#define FREQS1    1000000
+#define FREQS0    -1  //100000
+#define FREQS1    -1  //1000000
 #define CTXIDS    3
 
 static void
@@ -737,7 +737,7 @@ encode_binary(ZPCodec &zp, BitContext *ctx, int bits, int x)
 
 unsigned int
 BSByteStream::encode()
-{ 
+{
   /////////////////////////////////
   ////////////  Block Sort Tranform
 
@@ -762,10 +762,14 @@ BSByteStream::encode()
   for (m=0; m<FREQMAX; m++)
     freq[m] = 0;
   int fshift = 0;
-  if (size > FREQS0)
+  if (size > FREQS0 && FREQS0 >= 0)
     fshift += 1;
-  if (size > FREQS1)
+  if (size > FREQS1 && FREQS1 >= 0)
     fshift += 1;
+#if 0
+  fprintf(stderr,"Encoding size=%ld shift=%d\n", (long)size, fshift);
+#endif
+
   // Encode
   int i;
   int mtfno = 3;
@@ -927,9 +931,9 @@ BSByteStream::decode()
   for (m=0; m<FREQMAX; m++)
     freq[m]= 0;
   int fshift = 0;
-  if (size > FREQS0)
+  if (size > FREQS0 && FREQS0 >= 0)
     fshift += 1;
-  if (size > FREQS1)
+  if (size > FREQS1 && FREQS1 >= 0)
     fshift += 1;
   // Decode
   int mtfno = 3;
