@@ -44,6 +44,35 @@ test: bzz FORCE
 	echo "------------------------------------------------------------"; \
 	if [ $$failed -eq 0 ]; then echo "All roundtrip tests passed."; else exit 1; fi
 
+table: bzz FORCE
+	@echo "=== Canterbury Corpus BPC values (blocksize=${BLOCKSIZE}) ==="
+	@echo ""
+	@total_size=0; total_comp=0; sum_bpc=0; count=0; \
+	for entry in "text:alice29.txt" "fax:ptt5" "Csrc:fields.c" "Excl:kennedy.xls" \
+	             "SPRC:sum" "tech:lcet10.txt" "poem:plrabn12.txt" "html:cp.html" \
+	             "lisp:grammar.lsp" "man:xargs.1" "play:asyoulik.txt"; do \
+	  name=`echo "$$entry" | cut -d: -f1`; \
+	  file=`echo "$$entry" | cut -d: -f2`; \
+	  f="canterbury/$$file"; \
+	  if [ -f "$$f" ]; then \
+	    size=`wc -c < "$$f" | tr -d ' '`; \
+	    ./bzz -e${BLOCKSIZE} "$$f" /tmp/bzz_table.bzz 2>/dev/null; \
+	    comp=`wc -c < /tmp/bzz_table.bzz | tr -d ' '`; \
+	    bpc=`echo "scale=2; ($$comp * 8.0) / $$size" | bc`; \
+	    printf "%-6s: %s\n" "$$name" "$$bpc"; \
+	    total_size=`echo "$$total_size + $$size" | bc`; \
+	    total_comp=`echo "$$total_comp + $$comp" | bc`; \
+	    sum_bpc=`echo "$$sum_bpc + $$bpc" | bc`; \
+	    count=`echo "$$count + 1" | bc`; \
+	  fi; \
+	done; \
+	weighted=`echo "scale=2; ($$total_comp * 8.0) / $$total_size" | bc`; \
+	average=`echo "scale=2; $$sum_bpc / $$count" | bc`; \
+	echo ""; \
+	printf "Weighted: %s\n" "$$weighted"; \
+	printf "Average:  %s\n" "$$average"; \
+	rm -f /tmp/bzz_table.bzz
+
 FORCE:
 
 .PHONY: FORCE
