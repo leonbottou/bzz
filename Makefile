@@ -58,19 +58,19 @@ table: bzz FORCE
 	    size=`wc -c < "$$f" | tr -d ' '`; \
 	    ./bzz -e${BLOCKSIZE} "$$f" /tmp/bzz_table.bzz 2>/dev/null; \
 	    comp=`wc -c < /tmp/bzz_table.bzz | tr -d ' '`; \
-	    bpc=`echo "scale=2; ($$comp * 8.0) / $$size" | bc`; \
-	    printf "%-6s: %s\n" "$$name" "$$bpc"; \
+	    bpc=`echo "scale=4; ($$comp * 8.0) / $$size" | bc`; \
+	    printf "%-6s: %5.3f\n" "$$name" "$$bpc"; \
 	    total_size=`echo "$$total_size + $$size" | bc`; \
 	    total_comp=`echo "$$total_comp + $$comp" | bc`; \
 	    sum_bpc=`echo "$$sum_bpc + $$bpc" | bc`; \
 	    count=`echo "$$count + 1" | bc`; \
 	  fi; \
 	done; \
-	weighted=`echo "scale=2; ($$total_comp * 8.0) / $$total_size" | bc`; \
-	average=`echo "scale=2; $$sum_bpc / $$count" | bc`; \
+	weighted=`echo "scale=4; ($$total_comp * 8.0) / $$total_size" | bc`; \
+	average=`echo "scale=4; $$sum_bpc / $$count" | bc`; \
 	echo ""; \
-	printf "Weighted: %s\n" "$$weighted"; \
-	printf "Average:  %s\n" "$$average"; \
+	printf "Weighted: %5.3f\n" "$$weighted"; \
+	printf "Average:  %5.3f\n" "$$average"; \
 	rm -f /tmp/bzz_table.bzz
 
 FORCE:
