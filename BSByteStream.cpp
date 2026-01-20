@@ -1,4 +1,4 @@
-//C- Copyright © 1999-2001 LizardTech, Inc. All Rights Reserved.
+//C- Copyright ï¿½ 1999-2001 LizardTech, Inc. All Rights Reserved.
 //C- 
 //C- This software (the "Original Code") is subject to, and may be
 //C- distributed under, the GNU General Public License, Version 2.
@@ -700,6 +700,8 @@ _BSort::run(int &markerpos)
 
 
 #define CTXIDS 4
+#define FREQMAX 4
+#define BZZ_VERSION 0xE1
 
 
 #if REVERSE_BUFFER
@@ -759,24 +761,80 @@ BSByteStream::encode()
   reverse(data, size-1);
 #endif
   /////////////////////////////////
-  ////////////  Block Sort Tranform
+  ////////////  Block Sort Transform
 
   int markerpos = size-1;
   blocksort(data,size,markerpos);
 
   /////////////////////////////////
-  //////////// Encode Output Stream
+  ////////////  Save context for trial encoding
 
-  // Header
-  encode_raw(zp, 30, size);
-  // MTF
+  BitContext saved_ctx[300];
+  memcpy(saved_ctx, ctx, sizeof(ctx));
+
+  /////////////////////////////////
+  ////////////  Try different fshift values
+
+  size_t trial_size[4];
+  for (int fshift = 0; fshift <= 3; fshift++)
+    {
+      memcpy(ctx, saved_ctx, sizeof(ctx));
+      CountingByteStream counter;
+      {
+        ZPCodec trial_zp(counter, 1);
+        encode_block(trial_zp, ctx, fshift, markerpos);
+      } // trial_zp destructor calls eflush here
+      trial_size[fshift] = counter.getCount();
+    }
+
+  // Select best fshift
+  int best_fshift = 0;
+  for (int f = 1; f <= 3; f++)
+    if (trial_size[f] < trial_size[best_fshift])
+      best_fshift = f;
+
+#if DEBUG
+  fprintf(stderr,"bzz encode block size=%d fshift=%d (sizes: %zu/%zu/%zu/%zu)\n",
+          size, best_fshift, trial_size[0], trial_size[1], trial_size[2], trial_size[3]);
+#endif
+
+  /////////////////////////////////
+  ////////////  Encode with best fshift
+
+  memcpy(ctx, saved_ctx, sizeof(ctx));
+
+  // Write fshift (2 bits) and size (30 bits)
+  encode_raw(*zp, 2, best_fshift);
+  encode_raw(*zp, 30, size);
+
+  // Encode the block
+  encode_block(*zp, ctx, best_fshift, markerpos);
+
+  return 0;
+}
+
+
+// encode_block -- MTF encode with given fshift
+// fshift=0: fast frequency adaptation
+// fshift=1: medium adaptation
+// fshift=2: slow adaptation
+// fshift=3: pure MTF (no frequency adjustment)
+
+void
+BSByteStream::encode_block(ZPCodec &zp, BitContext *ctx, int fshift, int markerpos)
+{
+  // MTF initialization
   unsigned char mtf[256];
   unsigned char rmtf[256];
+  unsigned int  freq[FREQMAX];
   int m = 0;
   for (m=0; m<256; m++)
     mtf[m] = m;
   for (m=0; m<256; m++)
     rmtf[mtf[m]] = m;
+  int fadd = 4;
+  for (m=0; m<FREQMAX; m++)
+    freq[m] = 0;
 
   // Encode
   int i;
@@ -803,44 +861,79 @@ BSByteStream::encode()
       cx+=CTXIDS;
       b = (mtfno<4);
       zp.encoder(b, cx[0]);
-      if (b) { encode_binary(zp,cx+1,1,mtfno-2); goto rotate; } 
+      if (b) { encode_binary(zp,cx+1,1,mtfno-2); goto rotate; }
       cx+=1+1;
       b = (mtfno<8);
       zp.encoder(b, cx[0]);
-      if (b) { encode_binary(zp,cx+1,2,mtfno-4); goto rotate; } 
+      if (b) { encode_binary(zp,cx+1,2,mtfno-4); goto rotate; }
       cx+=1+3;
       b = (mtfno<16);
       zp.encoder(b, cx[0]);
-      if (b) { encode_binary(zp,cx+1,3,mtfno-8); goto rotate; } 
+      if (b) { encode_binary(zp,cx+1,3,mtfno-8); goto rotate; }
       cx+=1+7;
       b = (mtfno<32);
       zp.encoder(b, cx[0]);
-      if (b) { encode_binary(zp,cx+1,4,mtfno-16); goto rotate; } 
+      if (b) { encode_binary(zp,cx+1,4,mtfno-16); goto rotate; }
       cx+=1+15;
       b = (mtfno<64);
       zp.encoder(b, cx[0]);
-      if (b) { encode_binary(zp,cx+1,5,mtfno-32); goto rotate; } 
+      if (b) { encode_binary(zp,cx+1,5,mtfno-32); goto rotate; }
       cx+=1+31;
       b = (mtfno<128);
       zp.encoder(b, cx[0]);
-      if (b) { encode_binary(zp,cx+1,6,mtfno-64); goto rotate; } 
+      if (b) { encode_binary(zp,cx+1,6,mtfno-64); goto rotate; }
       cx+=1+63;
       b = (mtfno<256);
       zp.encoder(b, cx[0]);
-      if (b) { encode_binary(zp,cx+1,7,mtfno-128); goto rotate; } 
+      if (b) { encode_binary(zp,cx+1,7,mtfno-128); goto rotate; }
       continue;
+
     rotate:
-      int k;
-      for (k=mtfno; k>0; k--)
+      if (fshift >= 3)
         {
-          mtf[k] = mtf[k-1];
+          // Pure MTF: always move to front
+          int k;
+          for (k=mtfno; k>0; k--)
+            {
+              mtf[k] = mtf[k-1];
+              rmtf[mtf[k]] = k;
+            }
+          mtf[k] = c;
           rmtf[mtf[k]] = k;
         }
-      mtf[k] = c;
-      rmtf[mtf[k]] = k;
+      else
+        {
+          // Frequency-adjusted MTF
+          int k;
+          fadd = fadd + (fadd>>fshift);
+          if (fadd > 0x10000000)
+            {
+              fadd = fadd>>24;
+              freq[0] >>= 24;
+              freq[1] >>= 24;
+              freq[2] >>= 24;
+              freq[3] >>= 24;
+            }
+          // Relocate new char according to freq
+          unsigned int fc = fadd;
+          if (mtfno < FREQMAX)
+            fc += freq[mtfno];
+          for (k=mtfno; k>=FREQMAX; k--)
+            {
+              mtf[k] = mtf[k-1];
+              rmtf[mtf[k]] = k;
+            }
+          for (; k>0 && fc>=freq[k-1]; k--)
+            {
+              mtf[k] = mtf[k-1];
+              freq[k] = freq[k-1];
+              rmtf[mtf[k]] = k;
+            }
+          mtf[k] = c;
+          freq[k] = fc;
+          rmtf[mtf[k]] = k;
+        }
     }
-  // Terminate
-  return 0;
 }
 
 
@@ -882,12 +975,13 @@ BSByteStream::decode()
 {
   /////////////////////////////////
   ////////////  Decode input stream
-  
+
   int i;
-  // Decode block size
-  size = decode_raw(zp, 30);
+  // Decode fshift (2 bits) and block size (30 bits)
+  int fshift = decode_raw(*zp, 2);
+  size = decode_raw(*zp, 30);
 #if DEBUG
-  fprintf(stderr,"bzz block size=%ld\n",(long)size);
+  fprintf(stderr,"bzz block fshift=%d size=%ld\n", fshift, (long)size);
 #endif
   if (size == 0)
     return 0;
@@ -898,16 +992,22 @@ BSByteStream::decode()
     {
       blocksize = size;
       if (data)
-        delete [] data; 
+        delete [] data;
       data = 0;
     }
-  if (! data) 
+  if (! data)
     data = new unsigned char[blocksize];
-  // MTF
+
+  // MTF initialization with frequency tracking
   unsigned char mtf[256];
+  unsigned int freq[FREQMAX];
   int m = 0;
   for (m=0; m<256; m++)
     mtf[m] = m;
+  int fadd = 4;
+  for (m=0; m<FREQMAX; m++)
+    freq[m] = 0;
+
   // Decode
   int mtfno = 3;
   int markerpos = -1;
@@ -916,47 +1016,78 @@ BSByteStream::decode()
       int ctxid = CTXIDS-1;
       if (ctxid>mtfno) ctxid=mtfno;
       BitContext *cx = ctx;
-      if (zp.decoder(cx[ctxid]))
+      if (zp->decoder(cx[ctxid]))
         { mtfno=0; data[i]=mtf[mtfno]; goto rotate; }
       cx+=CTXIDS;
-      if (zp.decoder(cx[ctxid]))
-        { mtfno=1; data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[ctxid]))
+        { mtfno=1; data[i]=mtf[mtfno]; goto rotate; }
       cx+=CTXIDS;
-      if (zp.decoder(cx[0]))
-        { mtfno=2+decode_binary(zp,cx+1,1); data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[0]))
+        { mtfno=2+decode_binary(*zp,cx+1,1); data[i]=mtf[mtfno]; goto rotate; }
       cx+=1+1;
-      if (zp.decoder(cx[0]))
-        { mtfno=4+decode_binary(zp,cx+1,2); data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[0]))
+        { mtfno=4+decode_binary(*zp,cx+1,2); data[i]=mtf[mtfno]; goto rotate; }
       cx+=1+3;
-      if (zp.decoder(cx[0]))
-        { mtfno=8+decode_binary(zp,cx+1,3); data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[0]))
+        { mtfno=8+decode_binary(*zp,cx+1,3); data[i]=mtf[mtfno]; goto rotate; }
       cx+=1+7;
-      if (zp.decoder(cx[0]))
-        { mtfno=16+decode_binary(zp,cx+1,4); data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[0]))
+        { mtfno=16+decode_binary(*zp,cx+1,4); data[i]=mtf[mtfno]; goto rotate; }
       cx+=1+15;
-      if (zp.decoder(cx[0]))
-        { mtfno=32+decode_binary(zp,cx+1,5); data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[0]))
+        { mtfno=32+decode_binary(*zp,cx+1,5); data[i]=mtf[mtfno]; goto rotate; }
       cx+=1+31;
-      if (zp.decoder(cx[0]))
-        { mtfno=64+decode_binary(zp,cx+1,6); data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[0]))
+        { mtfno=64+decode_binary(*zp,cx+1,6); data[i]=mtf[mtfno]; goto rotate; }
       cx+=1+63;
-      if (zp.decoder(cx[0]))
-        { mtfno=128+decode_binary(zp,cx+1,7); data[i]=mtf[mtfno]; goto rotate; } 
+      if (zp->decoder(cx[0]))
+        { mtfno=128+decode_binary(*zp,cx+1,7); data[i]=mtf[mtfno]; goto rotate; }
       mtfno=256;
       data[i]=0;
       markerpos=i;
       continue;
+
     rotate:
-      int k;
-      for (k=mtfno; k>0; k--) 
-        mtf[k] = mtf[k-1];
-      mtf[k] = data[i];
+      if (fshift >= 3)
+        {
+          // Pure MTF
+          int k;
+          for (k=mtfno; k>0; k--)
+            mtf[k] = mtf[k-1];
+          mtf[k] = data[i];
+        }
+      else
+        {
+          // Frequency-adjusted MTF
+          int k;
+          fadd = fadd + (fadd>>fshift);
+          if (fadd > 0x10000000)
+            {
+              fadd >>= 24;
+              freq[0] >>= 24;
+              freq[1] >>= 24;
+              freq[2] >>= 24;
+              freq[3] >>= 24;
+            }
+          unsigned int fc = fadd;
+          if (mtfno < FREQMAX)
+            fc += freq[mtfno];
+          for (k=mtfno; k>=FREQMAX; k--)
+            mtf[k] = mtf[k-1];
+          for (; k>0 && fc>=freq[k-1]; k--)
+            {
+              mtf[k] = mtf[k-1];
+              freq[k] = freq[k-1];
+            }
+          mtf[k] = data[i];
+          freq[k] = fc;
+        }
     }
-  
+
 
   /////////////////////////////////
   ////////// Reconstruct the string
-  
+
   if (markerpos<1 || markerpos>=size)
     THROW("Corrupted decoder input");
   // Allocate pointers
@@ -969,7 +1100,7 @@ BSByteStream::decode()
   for (i=0; i<256; i++)
     count[i] = 0;
   // Fill count buffer
-  for (i=0; i<markerpos; i++) 
+  for (i=0; i<markerpos; i++)
     {
       unsigned char c = data[i];
       posn[i] = count[c];
@@ -1024,9 +1155,8 @@ BSByteStream::decode()
 
 
 BSByteStream::BSByteStream(ByteStream &xbs, int encoding)
-  : encoding(encoding), offset(0), bptr(0), blocksize(0), 
-    data(0), size(0), eof(0), bs(&xbs),
-    zp(*bs, encoding)
+  : encoding(encoding), offset(0), bptr(0), blocksize(0),
+    data(0), size(0), eof(0), bs(&xbs), zp(0)
 {
   if (encoding)
     {
@@ -1035,6 +1165,19 @@ BSByteStream::BSByteStream(ByteStream &xbs, int encoding)
               STR(MINBLOCK) "Kb.." STR(MAXBLOCK) "Kb] range");
       // Record block size
       blocksize = encoding * 1024;
+    }
+  // Create ZPCodec
+  zp = new ZPCodec(*bs, encoding);
+  // Write or read version byte through ZPCodec
+  if (encoding)
+    {
+      encode_raw(*zp, 8, BZZ_VERSION);
+    }
+  else
+    {
+      int v = decode_raw(*zp, 8);
+      if (v != BZZ_VERSION)
+        THROW("Incompatible BZZ format (expected version 0xE1)");
     }
   // Initialize context array
   memset(ctx, 0, sizeof(ctx));
@@ -1045,14 +1188,20 @@ BSByteStream::BSByteStream(ByteStream &xbs, int encoding)
 BSByteStream::~BSByteStream()
 {
   // Flush
-  if (encoding) 
-    flush();
-  // Encode EOF marker
   if (encoding)
-    encode_raw(zp, 30, 0);
+    flush();
+  // Encode EOF marker (fshift=0, size=0)
+  if (encoding)
+    {
+      encode_raw(*zp, 2, 0);   // fshift
+      encode_raw(*zp, 30, 0);  // size
+    }
+  // Delete ZPCodec
+  if (zp)
+    delete zp;
   // Free allocated memory
   if (data)
-    delete [] data; 
+    delete [] data;
 }
 
 

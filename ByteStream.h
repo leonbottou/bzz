@@ -1,4 +1,4 @@
-//C- Copyright © 1999-2001 LizardTech, Inc. All Rights Reserved.
+//C- Copyright ï¿½ 1999-2001 LizardTech, Inc. All Rights Reserved.
 //C- 
 //C- This software (the "Original Code") is subject to, and may be
 //C- distributed under, the GNU General Public License, Version 2.
@@ -339,6 +339,30 @@ private:
 //@}
 
 
+
+/** ByteStream that just counts bytes written.
+    Class #CountingByteStream# is a write-only ByteStream that simply
+    counts the number of bytes written without storing anything.
+    This is useful for estimating compressed sizes without memory overhead. */
+
+class CountingByteStream : public ByteStream
+{
+public:
+  /** Creates a CountingByteStream with zero count. */
+  CountingByteStream() : count(0) {}
+  // Virtual functions
+  size_t read(void *buffer, size_t sz) { return 0; }
+  size_t write(const void *buffer, size_t sz) { count += sz; return sz; }
+  void seek(long offset, int whence = SEEK_SET) {}
+  long tell() { return (long)count; }
+  void flush() {}
+  /** Resets the byte count to zero. */
+  void reset() { count = 0; }
+  /** Returns the current byte count. */
+  size_t getCount() const { return count; }
+private:
+  size_t count;
+};
 
 // ------------ THE END
 #endif

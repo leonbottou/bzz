@@ -1,4 +1,4 @@
-//C- Copyright © 1999-2001 LizardTech, Inc. All Rights Reserved.
+//C- Copyright ï¿½ 1999-2001 LizardTech, Inc. All Rights Reserved.
 //C- 
 //C- This software (the "Original Code") is subject to, and may be
 //C- distributed under, the GNU General Public License, Version 2.
@@ -37,9 +37,17 @@
     is performed using a combination of the Karp-Miller-Rosenberg and the
     Bentley-Sedgewick algorithms. This is comparable to (Sadakane, DCC 98)
     with a slightly more flexible ranking scheme. Symbols are then ordered
-    according to a running estimate of their occurrence frequencies.  The
-    symbol ranks are then coded using a simple fixed tree and the
+    according to a running estimate of their occurrence frequencies, with
+    an adaptation rate that is selected on a per-block basis by trying
+    multiple settings and picking the one that yields the best compression.
+    The symbol ranks are then coded using a simple fixed tree and the
     \Ref{ZPCodec} binary adaptive coder.
+
+    {\bf File format} --- The compressed stream starts with a version byte
+    (currently 0xE1) followed by a sequence of compressed blocks. Each block
+    begins with a 2-bit adaptation rate selector and a 30-bit block size,
+    followed by the ZP-coded MTF ranks.  The stream ends with a block having
+    size zero.
 
     {\bf Performances} --- The basic algorithm is mostly similar to those
     implemented in well known compressors like #bzip# or #bzip2#
@@ -85,9 +93,13 @@
       & {\bf 2.21} & {\bf 2.24} & {\bf 2.29} & {\bf 2.91} & {\bf 2.35} 
       & 1.63 & {\bf 2.06} \\
       {\bf bzz}
-      & 2.25 & {\bf 0.76} & 2.13 & {\bf 0.78} & 2.67 & 2.00
-      & 2.40 & 2.52 & 2.60 & 3.19 & 2.52 
-      & {\bf 1.44} & 2.16
+      & 2.25 & 0.76 & 2.13 & 0.78 & 2.67 & 2.00
+      & 2.40 & 2.52 & 2.60 & 3.19 & 2.52
+      & {\bf 1.44} & 2.16 \\
+      {\bf bzz 2.0}
+      & 2.24 & {\bf 0.75} & 2.13 & {\bf 0.77} & 2.66 & 1.99
+      & 2.37 & 2.51 & 2.60 & 3.17 & 2.51
+      & {\bf 1.44} & 2.15
     \end{tabular}
     }
 
@@ -152,10 +164,10 @@ public:
       data will be read from ByteStream #bs# and decompressed into an internal
       buffer. Function #read# can be used to access the decompressed data.
       \item[Compression]
-      Setting #blocksize# to a positive number between 100 and 4096
+      Setting #blocksize# to a positive number between 100 and 1024
       initializes the compressor.  Data written to the BSByteStream will be
       accumulated into an internal buffer.  The buffered data will be
-      compressed and written to ByteStream #bs# whenever the buffer sizes
+      compressed and written to ByteStream #bs# whenever the buffer size
       reaches the maximum value specified by argument #blocksize# (in
       kilobytes).  Using a larger block size usually increases the compression
       ratio at the expense of computation time.  There is no need however to
@@ -180,15 +192,18 @@ private:
   int             eof;
   ByteStream	 *bs;
   // Coder
-  ZPCodec           zp;
+  ZPCodec          *zp;
   BitContext        ctx[300];
-private:  
+private:
   // Cancel C++ default stuff
   BSByteStream(const BSByteStream &);
   BSByteStream & operator=(const BSByteStream &);
   // Helpers
   unsigned int encode(void);
   unsigned int decode(void);
+  // MTF encode/decode with fshift parameter
+  void encode_block(ZPCodec &zp, BitContext *ctx, int fshift, int markerpos);
+  void decode_block(int fshift);
 };
 
 
